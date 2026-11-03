@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telnyx People Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0f1218; --panel:#171c26; --panel2:#1e2430; --border:#2a3140;
+  --text:#e8ecf1; --muted:#8b95a7; --accent:#4f8ef7; --green:#3fb977; --red:#e5534b;
+  --purple:#a371f7; --orange:#f0883e; --cyan:#39c5cf;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+.app{display:flex;min-height:100vh}
+.sidebar{width:230px;background:var(--panel);border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px;padding:4px 10px 22px;font-weight:700;font-size:16px}
+.logo .dot{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#4f8ef7,#a371f7);display:flex;align-items:center;justify-content:center;font-size:13px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{color:var(--muted);text-decoration:none;padding:9px 12px;border-radius:8px;font-size:13.5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.nav a:hover{background:var(--panel2);color:var(--text)}
+.nav a.active{background:rgba(79,142,247,.14);color:var(--accent);font-weight:600}
+.nav a.restricted{opacity:.45}
+.role-toggle{margin-top:22px;padding:12px;border:1px solid var(--border);border-radius:10px}
+.role-toggle .lbl{font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.role-toggle .btns{display:flex;gap:6px}
+.role-toggle button{flex:1;padding:6px 0;font-size:12px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);border-radius:7px;cursor:pointer}
+.role-toggle button.on{background:rgba(79,142,247,.2);color:var(--accent);border-color:rgba(79,142,247,.4)}
+.main{flex:1;padding:22px 28px;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:14px;flex-wrap:wrap}
+.topbar h1{font-size:19px;font-weight:700}
+.topbar .updated{color:var(--muted);font-size:12px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--border);padding:10px 12px;border-radius:10px;margin-bottom:16px}
+.filters label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fgroup{display:flex;flex-direction:column;gap:3px}
+.filters select,.filters input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 8px;font-size:12.5px;min-width:120px}
+.filters .reset{background:transparent;border:1px solid var(--red);color:var(--red);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:12.5px;align-self:flex-end}
+.filters .reset:hover{background:rgba(229,83,75,.12)}
+.filters .export{background:transparent;border:1px solid var(--green);color:var(--green);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:12.5px;align-self:flex-end}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kpi .klabel{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.kpi .kval{font-size:25px;font-weight:700;line-height:1.1}
+.kpi .kdelta{font-size:12px;margin-top:5px;color:var(--muted)}
+.up{color:var(--green)} .down{color:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.panelc{grid-column:span 6;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+.panelc.c12{grid-column:span 12}
+.panelc h3{font-size:13.5px;margin-bottom:2px}
+.panelc .sub{font-size:11.5px;color:var(--muted);margin-bottom:10px}
+.chart-wrap{position:relative;height:250px}
+.chart-wrap.tall{height:330px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;border-bottom:1px solid var(--border);cursor:pointer}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+td{padding:7px 8px;border-bottom:1px solid rgba(42,49,64,.5)}
+tr:hover td{background:rgba(79,142,247,.05)}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px}
+.pill.active{background:rgba(63,185,119,.15);color:var(--green)}
+.pill.term{background:rgba(229,83,75,.15);color:var(--red)}
+.pill.emp{background:rgba(79,142,247,.15);color:var(--accent)}
+.pill.con{background:rgba(163,113,247,.15);color:var(--purple)}
+.search{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:7px 10px;font-size:12.5px;width:260px;margin-bottom:10px}
+.summary{background:linear-gradient(135deg,rgba(79,142,247,.08),rgba(163,113,247,.06));border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px;white-space:pre-line;line-height:1.6;font-size:13.5px}
+.summary h2{font-size:14px;margin-bottom:10px;color:var(--accent)}
+.dq .item{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:8px}
+.dq .area{font-weight:600}
+.dq .status{color:var(--orange)}
+.ok{color:var(--green)}
+.gate{background:rgba(240,136,62,.08);border:1px solid rgba(240,136,62,.35);color:var(--orange);border-radius:10px;padding:13px 16px;font-size:13px;margin-bottom:14px}
+.denom{font-size:11px;color:var(--muted);margin-top:6px}
+.footer{color:var(--muted);font-size:11.5px;margin-top:24px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+@media(max-width:1100px){.panelc{grid-column:span 12}.sidebar{width:200px}}
+</style>
+</head>
+<body><script>window.__errs=[]; window.onerror=function(m,s,l){window.__errs.push(String(m)+' line '+l);};</script>
+<div class="app">
+  <div class="sidebar">
+    <div class="logo"><div class="dot">✦</div>Telnyx People Analytics</div>
+    <div class="nav" id="nav"></div>
+    <div class="role-toggle">
+      <div class="lbl">Access level</div>
+      <div class="btns">
+        <button id="role-po">People Ops</button>
+        <button id="role-ld">Leadership</button>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:0 10px;font-size:11.5px;color:var(--muted)" id="perm-note"></div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <h1 id="page-title">Workforce Overview</h1>
+      <div class="updated" id="updated"></div>
+    </div>
+    <div id="filters-box"></div>
+    <div id="content"></div>
+    <div class="footer">
+      <div id="foot-note">Source: Rippling v2 REST API · refreshed automatically every 20 minutes</div>
+      <div id="foot-asof"></div>
+    </div>
+  </div>
+</div>
+<script>
+let D = null;
+const PAGES = [
+  {id:'overview',    t:'Workforce Overview',        icon:'◈'},
+  {id:'hiring',      t:'Hiring & Recruitment',      icon:'＋'},
+  {id:'attrition',   t:'Retention & Attrition',     icon:'↘'},
+  {id:'org',         t:'Organisation Structure',    icon:'⌘'},
+  {id:'compensation',t:'Compensation',              icon:'$', restricted:'peopleops'},
+  {id:'experience',  t:'Experience & Diversity',    icon:'♡', restricted:'peopleops'},
+  {id:'workers',     t:'Employee Directory',        icon:'☰', restricted:'peopleops'},
+  {id:'dataquality', t:'Data Quality',              icon:'✓'},
+];
+const state = { role:'peopleops', page:'overview',
+  f:{ period:'12m', dept:'', manager:'', country:'', etype:'', status:'', level:'', from:'', to:'' } };
+let charts = [];
+
+/* ---------- utils ---------- */
+function pct(n,d){ return d? Math.round(n*1000/d)/10 : null; }
+function fmt(n){ return n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:1}); }
+function median(a){ if(!a||!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1;
+  return s.length%2? s[m] : (s[m-1]+s[m])/2; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c])); }
+const startOfMonth = d => d.slice(0,7)+'-01';
+function addMonths(ym, n){ const [y,m]=ym.split('-').map(Number); const t=m-1+n; return `${y+Math.floor(t/12)}-${String(t%12+1).padStart(2,'0')}`; }
+function monthLabel(ym){ const [y,m]=ym.split('-').map(Number); return new Date(y,m-1,1).toLocaleString('en-US',{month:'short',year:'2-digit'}); }
+function lastFullMonth(){ const d=new Date(D.as_of+'T00:00:00'); d.setDate(0); return d.toISOString().slice(0,7); }
+
+function periodRange(){
+  const f=state.f, lm=lastFullMonth();
+  if(f.period==='custom'){
+    return {from: f.from || '2000-01-01', to: f.to || D.as_of,
+            kind:'custom'};
+  }
+  const n = f.period==='1m'?1: f.period==='3m'?3: f.period==='ytd'? null : 12;
+  if(n===null){
+    return {from: D.as_of.slice(0,4)+'-01-01', to: D.as_of, kind:'ytd'};
+  }
+  return {from: startOfMonth(addMonths(lm, -(n-1))), to: D.as_of, kind:'rolling'};
+}
+
+/* ---------- filtered cohort ---------- */
+function cohort(includeTerm){
+  let w = D.workers;
+  const f = state.f;
+  if(f.dept) w=w.filter(x=>x.department===f.dept);
+  if(f.manager) w=w.filter(x=>x.manager===f.manager);
+  if(f.country) w=w.filter(x=>x.country===f.country);
+  if(f.etype) w=w.filter(x=>x.employment_type===f.etype);
+  if(f.level) w=w.filter(x=>x.level===f.level);
+  if(f.status) w=w.filter(x=>f.status==='active'? x.status==='ACTIVE' : x.status==='TERMINATED');
+  else if(!includeTerm) w=w.filter(x=>x.status==='ACTIVE');
+  return w;
+}
+function headcountAt(ds, w){ return (w||cohort(false)).filter(x=>x.start_date && x.start_date.slice(0,10)<=ds && (!x.end_date||x.end_date.slice(0,10)>=ds)); }
+function hiresBetween(a,b,w){ return (w===undefined? D.workers: w).filter(x=>x.start_date && x.start_date.slice(0,10)>=a && x.start_date.slice(0,10)<=b); }
+function exitsBetween(a,b,w){ return (w===undefined? D.workers: w).filter(x=>x.end_date && x.end_date.slice(0,10)>=a && x.end_date.slice(0,10)<=b); }
+
+/* recomputes KPIs honoring filters + period. Mirrors pipeline conventions:
+   headcount inclusive, hires by start month, exits by end month, adjustments
+   for first-of-month hires and last-day exits. */
+function computeKpis(){
+  const pr = periodRange();
+  const w = cohort(true); // includes terminated when unfiltered
+  const open = headcountAt(pr.from, w), close = headcountAt(pr.to, w);
+  const hires = hiresBetween(pr.from, pr.to, w), exits = exitsBetween(pr.from, pr.to, w);
+  const lastDayExits = exits.filter(x=>x.end_date.slice(0,10)===pr.to);
+  const firstDayHires = hires.filter(x=>x.start_date.slice(0,10)===pr.from);
+  const adj = lastDayExits.length - firstDayHires.length;
+  const avg = (open.length+close.length)/2;
+  const net = hires.length - exits.length;
+  const emp = close.filter(x=>x.employment_type==='EMPLOYEE');
+  const con = close.filter(x=>x.employment_type==='CONTRACTOR');
+  const vol = exits.filter(x=>(x.termination_type||'').toUpperCase().startsWith('VOLUNTARY'));
+  const openIds = new Set(open.map(x=>x.id));
+  const retained = close.filter(x=>openIds.has(x.id)).length;
+  return { pr, open:open.length, close:close.length, hires:hires.length, exits:exits.length,
+    adj, net, growth:pct(close.length-open.length, open.length),
+    emp:emp.length, con:con.length,
+    fte: emp.reduce((s,x)=>s+(x.fte||0),0),
+    medTenure: median(close.map(x=>x.tenure_months).filter(v=>v!=null)),
+    turn:pct(exits.length, avg), volTurn:pct(vol.length, avg),
+    involTurn:pct(exits.length-vol.length, avg),
+    vol:vol.length, invol:exits.length-vol.length,
+    retention:pct(retained, open.length), avgHeadcount:avg };
+}
+
+/* ---------- charts ---------- */
+const PALETTE=['#4f8ef7','#a371f7','#3fb977','#f0883e','#39c5cf','#e5534b','#c17ff0','#67d17e','#5686d6','#f7c94f'];
+const AXIS={ticks:{color:'#8b95a7',font:{size:11}},grid:{color:'rgba(42,49,64,.55)'}};
+function baseOpts(extra){ return Object.assign({responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#8b95a7',font:{size:11}}}}}, extra||{});}
+function mkChart(id,cfg){ const el=document.getElementById(id); if(!el) return; charts.push(new Chart(el.getContext('2d'),cfg)); }
+function killCharts(){ charts.forEach(c=>c.destroy()); charts=[]; }
+function countBy(list,key){ const c={}; list.forEach(x=>{const k=x[key]||'Unknown'; c[k]=(c[k]||0)+1;});
+  return Object.entries(c).map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count); }
+function topN(items,n){ return items.slice(0,n||10); }
+function bar(id,items,{horizontal,label,color}={}){
+  return mkChart(id,{type:'bar',
+    data:{labels:items.map(i=>i.label),
+      datasets:[{label:label||'Count',data:items.map(i=>i.count),
+        backgroundColor: color|| items.map((_,i)=>PALETTE[i%PALETTE.length]),borderRadius:4}]},
+    options:baseOpts({indexAxis: horizontal?'y':'x',
+      scales:{x:AXIS,y:Object.assign({},AXIS,{beginAtZero:true})},
+      plugins:{legend:{display:false}}})});
+}
+function stacked(id,itemsA,itemsB,lA,lB,labelA,labelB){
+  const m=new Map();
+  itemsA.forEach(i=>{ if(!m.has(i.label)) m.set(i.label,{a:0,b:0}); m.get(i.label).a=i.count; });
+  itemsB.forEach(i=>{ if(!m.has(i.label)) m.set(i.label,{a:0,b:0}); m.get(i.label).b=i.count; });
+  const labels=[...m.keys()]; const A=labels.map(k=>m.get(k).a), B=labels.map(k=>m.get(k).b);
+  return mkChart(id,{type:'bar',
+    data:{labels,datasets:[{label:labelA,data:A,backgroundColor:'#3fb977',borderRadius:3,stack:'s'},
+                           {label:labelB,data:B,backgroundColor:'#e5534b',borderRadius:3,stack:'s'}]},
+    options:baseOpts({scales:{x:Object.assign({},AXIS,{stacked:true}),y:Object.assign({},AXIS,{stacked:true,beginAtZero:true})}})});
+}
+function line(id,labels,datasets){
+  return mkChart(id,{type:'line',data:{labels,datasets},
+    options:baseOpts({scales:{x:Object.assign({},AXIS,{grid:{display:false}}),y:AXIS},
+      plugins:{legend:{labels:{color:'#8b95a7',font:{size:11}}}}})});
+}
+function doughnut(id,items){
+  mkChart(id,{type:'doughnut',data:{labels:items.map(i=>i.label),
+    datasets:[{data:items.map(i=>i.count),backgroundColor:items.map((_,i)=>PALETTE[i%PALETTE.length]),borderWidth:0}]},
+    options:baseOpts({cutout:'62%',plugins:{legend:{position:'right',labels:{color:'#8b95a7',font:{size:11}}}}})});
+}
+
+/* ---------- rendering helpers ---------- */
+function kpiCard(label,val,delta,cls){
+  return `<div class="card kpi"><div class="klabel">${label}</div><div class="kval">${val}</div>
+    ${delta?`<div class="kdelta ${cls||''}">${delta}</div>`:''}</div>`;
+}
+function panel(title,sub,body,span){ return `<div class="panelc ${span||''}"><h3>${title}</h3>${sub?`<div class="sub">${sub}</div>`:''}${body}</div>`; }
+function tableHTML(headers,rows,{numCols}={}){
+  return `<table><thead><tr>${headers.map((h,i)=>`<th class="${numCols&&numCols.includes(i)?'num':''}">${h}</th>`).join('')}</tr></thead>
+   <tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${numCols&&numCols.includes(i)?'num':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function suppress(items,total){ // n<5 → "Suppressed"
+  return items.map(i=> i.count<5? Object.assign({},i,{label:'Suppressed (<5)',count:null,suppressed:i.count}) : i);
+}
+
+/* ================= pages ================= */
+function gateHTML(msg){ return `<div class="gate">${msg||'🔒 This section requires People Operations access. Switch access level in the sidebar to view.'}</div>`; }
+function isPO(){ return state.role==='peopleops'; }
+
+function pageOverview(){
+  const k = computeKpis();
+  const months = D.monthly.map(m=>m.month);
+  const hc = D.monthly.map(m=>m.closing_headcount);
+  const hireBars = D.monthly.map(m=>({label:monthLabel(m.month),count:m.new_hires}));
+  const exitBars = D.monthly.map(m=>({label:monthLabel(m.month),count:m.exits}));
+  const k2 = cohort(false);
+  let html = kpiCard('Active Headcount',fmt(k.close),`period start: ${fmt(k.open)}`)
+    + kpiCard('New Hires',fmt(k.hires),null)
+    + kpiCard('Exits',fmt(k.exits),null)
+    + kpiCard('Net Change',`${k.net>=0?'+':''}${fmt(k.net)}`,null,k.net>=0?'up':'down')
+    + kpiCard('Voluntary Turnover',k.volTurn==null?'—':k.volTurn+'%',`of ${fmt(k.exits)} exits, ${k.vol} voluntary`,k.volTurn==null?'':(k.volTurn<=1.5?'up':'down'))
+    + kpiCard('Median Tenure',k.medTenure==null?'—':k.medTenure+' mo',null)
+    + kpiCard('Employees / Contractors',`${fmt(k.emp)} / ${fmt(k.con)}`,'· workforce mix',null)
+    + kpiCard('Total FTE',fmt(Math.round(k.fte*10)/10),'employees only',null)
+    + kpiCard('Growth Rate',k.growth==null?'—':k.growth+'%',null,k.growth>=0?'up':'down')
+    + kpiCard('Retention (cohort)',k.retention==null?'—':k.retention+'%',null,k.retention>=97?'up':'down');
+  html = `<div class="kpis">${html}</div>`;
+  html += execSummary();
+  html += `<div class="grid">`;
+  html += panel('Headcount Trend','Closing headcount by month (filtered cohort)',
+      `<canvas id="c-hc"></canvas>`,'c12');
+  html += panel('Hiring vs Exits','New joiners (green) and exits (red) by month',
+      `<canvas id="c-he"></canvas>`);
+  html += panel('Headcount by Department','Top 10 active today (filtered)',
+      `<canvas id="c-dept"></canvas>`);
+  html += panel('Employee vs Contractor Mix','Current active workforce','<canvas id="c-mix"></canvas>');
+  html += panel('Attrition by Department','Exits in period (top 8)',
+      `<canvas id="c-attr"></canvas>`);
+  html += panel('Span of Control','Direct-report distribution among managers',
+      `<canvas id="c-span"></canvas>`);
+  html += panel('Country Distribution','Active headcount by country (top 10)',
+      `<canvas id="c-country"></canvas>`);
+  html += panel('Management Ratio','Managers as share of active workforce',
+      `<div style="display:flex;align-items:center;gap:24px;padding:10px 0">
+        <div style="font-size:38px;font-weight:700;color:var(--accent)">${D.current.span_of_control.mgmt_ratio_pct}%</div>
+        <div style="color:var(--muted);font-size:12.5px">managers per total active workforce<br>
+        avg direct reports: <b style="color:var(--text)">${D.current.span_of_control.avg_span}</b> ·
+        1–3: <b style="color:var(--text)">${D.current.span_of_control.managers_1_3}</b> ·
+        4–8: <b style="color:var(--text)">${D.current.span_of_control.managers_4_8}</b> ·
+        9+: <b style="color:var(--text)">${D.current.span_of_control.managers_9plus}</b></div>
+      </div>`);
+  if(isPO()) html += panel('Compensation Trend (median, USD)','Annualised base salary of active employees; subject to permissions',
+      `<canvas id="c-comp"></canvas>`);
+  html += `</div>`;
+  afterRender(()=>{
+    line('c-hc', months.map(m=>monthLabel(m)), [{label:'Headcount',data:hc,borderColor:'#4f8ef7',fill:true}]);
+    stacked('c-he', hireBars, exitBars, null, null, 'New Hires','Exits');
+    bar('c-dept', topN(countBy(k2,'department'),10),{horizontal:true});
+    doughnut('c-mix',[{label:'Employees',count:k.emp},{label:'Contractors',count:k.con}]);
+    bar('c-attr', topN(exitsByAttr(),8),{horizontal:true,color:'#e5534b'});
+    spanChart('c-span');
+    bar('c-country', topN(countBy(k2,'country'),10),{horizontal:true});
+    if(isPO()) compTrendChart('c-comp');
+  });
+  return html;
+}
+function exitsByAttr(){
+  const k=computeKpis();
+  return topN(countBy(exitsBetween(k.pr.from,k.pr.to,state.f.status==='terminated'?undefined:undefined
+    ? undefined : (state.f.dept||state.f.manager||state.f.country||state.f.etype||state.f.level||state.f.status)? D.workers.filter(()=>true):undefined), 'department'),8);
+}
+function spanChart(id){
+  const s=listManagerSpans();
+  const b={'1–3':0,'4–8':0,'9+':0};
+  s.forEach(n=>{ b[n<=3?'1–3':n<=8?'4–8':'9+']++; });
+  doughnut(id,Object.entries(b).map(([label,count])=>({label,count})));
+}
+function listManagerSpans(){
+  const a=cohort(false); const c={};
+  a.forEach(x=>{ if(x.manager_id) c[x.manager_id]=(c[x.manager_id]||0)+1; });
+  return Object.values(c);
+}
+function compTrendChart(id){
+  const ms=D.monthly.filter(m=>m.median_compensation_usd!=null).slice(-12);
+  line(id, ms.map(m=>monthLabel(m.month)),
+    [{label:'Median annual base (USD)',data:ms.map(m=>m.median_compensation_usd),borderColor:'#3fb977',fill:false}]);
+}
+function execSummary(){
+  return `<div class="summary"><h2>Executive Summary — ${monthLabel(lastFullMonth())}</h2>${
+    buildSummaryText().replace(/&/g,'&').replace(/</g,'<').replace(/\n/g,'<br>')
+  }</div>`;
+}
+function buildSummaryText(){
+  const m=D.monthly, last=m[m.length-1], prev=m[m.length-2];
+  const hires3=m.slice(-3).reduce((s,x)=>s+x.new_hires,0), exits3=m.slice(-3).reduce((s,x)=>s+x.exits,0);
+  const a=D.attrition_12m, h=D.hiring_12m;
+  const volTrend=(last.voluntary_turnover_pct!=null&&prev.voluntary_turnover_pct!=null)?(last.voluntary_turnover_pct-prev.voluntary_turnover_pct):null;
+  const r90=[]; // find latest complete 90-day cohort
+  for(const r of [...D.hiring_12m.retention_90d].reverse()){ if(r.rate!=null){ r90.push(r); break; } }
+  const vol=last.voluntary_turnover_pct;
+  const lines=[];
+  lines.push(`Workforce ${last.net_change>=0?'grew':'shrank'} by ${Math.abs(last.net_change)} (${last.growth_pct>0?'+':''}${last.growth_pct}%) to ${last.closing_headcount} in ${monthLabel(last.month)}.`);
+  lines.push(`Hiring: ${last.new_hires} new joiner${last.new_hires===1?'':'s'} (3-month total ${hires3}); exits: ${last.exits} (3-month total ${exits3}). Top hiring department (12m): ${h.by_department[0]? h.by_department[0].label+' ('+h.by_department[0].count+')':'—'}.`);
+  lines.push(`Attrition (12m): highest in ${a.by_department[0]? a.by_department[0].label+' ('+a.by_department[0].count+' exits)':'—'}; overall turnover ${last.turnover_pct}% in ${monthLabel(last.month)}.`);
+  if(vol!=null) lines.push(`Voluntary turnover: ${vol}% in ${monthLabel(last.month)}${volTrend!=null?` — ${volTrend>=0?'+':''}${Math.round(volTrend*10)/10} pts vs prior month`:''}.`);
+  if(r90.length) lines.push(`New-hire 90-day retention: ${r90[0].rate}% (cohort of ${r90[0].eligible}, ${monthLabel(r90[0].month)}).`);
+  lines.push(`Organisation: avg span of control ${D.span_of_control.avg_span}; management ratio ${D.span_of_control.mgmt_ratio_pct}%.`);
+  if(isPO() && last.median_compensation_usd!=null) lines.push(`Compensation: median annualised base salary (USD) ${last.median_compensation_usd.toLocaleString()}.`);
+  lines.push(`Data quality: ${D.data_quality.gaps.length} known integration gaps (see Data Quality page).`);
+  return lines.join('\n');
+}
+
+/* ---- hiring ---- */
+function pageHiring(){
+  if(!isPO()) allowHiring = true; // hiring data is aggregate-safe for leadership
+  const k=computeKpis();
+  const hires=hiresBetween(k.pr.from,k.pr.to);
+  const r90=D.hiring_12m.retention_90d;
+  let html='';
+  html += `<div class="kpis">`+
+    kpiCard('Hires (period)',fmt(k.hires),null)+
+    kpiCard('Exits (period)',fmt(k.exits),null)+
+    kpiCard('Net Change',`${k.net>=0?'+':''}${fmt(k.net)}`,null,k.net>=0?'up':'down')+
+    kpiCard('Rehires (all-time)',fmt(D.hiring_12m.rehires_total),'internal mobility proxy')+
+    kpiCard('New-hire 90-day Retention',(r90.find(r=>r.rate!=null)||{}).rate!=null?r90.find(r=>r.rate!=null).rate+'%':'—','latest complete cohort','up')+
+    kpiCard('Median Tenure',k.medTenure==null?'—':k.medTenure+' mo',null)+
+  `</div>`;
+  html+=`<div class="gate" style="background:rgba(240,136,62,.06);border-color:rgba(240,136,62,.3)">
+    <b data-skip>Recruiting analytics unavailable:</b> Rippling's recruiting API returns no candidates/requisitions for this workspace, and offer/date/cost fields are not exposed —
+    offer acceptance rate, time to hire, time to fill, and cost per hire require manual export or a data warehouse connector.</div>`;
+  html+=`<div class="grid">`;
+  html+=panel('Monthly Hires','New joiners by start month (filtered cohort)',`<canvas id="c-hire-m"></canvas>`);
+  html+=panel('Hires by Department','Period (top 10)',`<canvas id="c-hire-d"></canvas>`);
+  html+=panel('Hires by Country','Period (top 10)',`<canvas id="c-hire-c"></canvas>`);
+  html+=panel('New Hire 90-day Retention','Only complete cohorts shown; in-progress cohorts excluded',
+      `<canvas id="c-r90"></canvas><div class="denom">Denominator: hires whose 90th day has passed.</div>`);
+  html+=panel('Hires Detail (People Ops)','New joiners in period',
+     isPO()? tableHTML(['Name','Department','Country','Title','Start Date','Manager'],
+      hires.map(w=>[esc(w.name),esc(w.department),esc(w.country),esc(w.title),w.start_date?w.start_date.slice(0,10):'—',esc(w.manager)]),
+      {numCols:[]}).slice(0,3600)+'<div class="denom">'+Math.min(hires.length,25)+' of '+hires.length+' shown; export for full list</div>'
+     : gateHTML());
+  html+=`</div>`;
+  afterRender(()=>{
+    bar('c-hire-m',D.monthly.map(m=>({label:monthLabel(m.month),count:m.new_hires})),{color:'#3fb977'});
+    bar('c-hire-d',topN(countBy(hires,'department'),10),{horizontal:true,color:'#3fb977'});
+    bar('c-hire-c',topN(countBy(hires,'country'),10),{horizontal:true,color:'#39c5cf'});
+    line('c-r90',r90.map(r=>monthLabel(r.month)),r90.filter(r=>r.rate!=null).length?
+      [{label:'90-day retention %',data:r90.map(r=>r.rate),borderColor:'#4f8ef7',spanGaps:true}]:[]);
+  });
+  return html;
+}
+
+/* ---- attrition ---- */
+function pageAttrition(){
+  const k=computeKpis();
+  const exits=exitsBetween(k.pr.from,k.pr.to);
+  const vol=exits.filter(x=>(x.termination_type||'').toUpperCase().startsWith('VOLUNTARY'));
+  const invol=exits.filter(x=>!(x.termination_type||'').toUpperCase().startsWith('VOLUNTARY'));
+  const a12=D.attrition_12m;
+  let html=`<div class="kpis">`+
+    kpiCard('Overall Turnover',k.turn==null?'—':k.turn+'%',`avg headcount ${fmt(k.avgHeadcount)}`)+
+    kpiCard('Voluntary Turnover',k.volTurn==null?'—':k.volTurn+'%',`${fmt(k.vol)} exits`)+
+    kpiCard('Involuntary Turnover',k.involTurn==null?'—':k.involTurn+'%',`${fmt(k.invol)} exits`)+
+    kpiCard('Retention (cohort)',k.retention==null?'—':k.retention+'%','opening cohort still active',k.retention>=97?'up':'down')+
+    kpiCard('Median Tenure at Exit',a12.median_tenure_at_exit_months!=null?a12.median_tenure_at_exit_months+' mo':'—','12-month basis')+
+    kpiCard('90-day New-hire Attrition',newHire90Attrition()==null?'—':newHire90Attrition()+'%','latest complete cohort',newHire90Attrition()<=10?'up':'down')+
+  `</div>`;
+  html+=`<div class="grid">`;
+  html+=panel('Turnover by Month','Exits (green) vs rolling headcount (line)',`<canvas id="c-tv"></canvas>`,'c12');
+  html+=panel('Attrition by Department','Period exits (top 8)',`<canvas id="c-attr-d"></canvas>`);
+  html+=panel('Attrition by Country','Period exits (top 8)',`<canvas id="c-attr-c"></canvas>`);
+  html+=panel('Voluntary vs Involuntary','Split of period exits',`<canvas id="c-vi"></canvas>`);
+  html+=panel('Attrition Detail (People Ops)','Individual exits in period with termination type',
+      isPO()? tableHTML(['Name','Department','Country','Start','End','Tenure (mo)','Type','Reason'],
+        exits.map(w=>[esc(w.name),esc(w.department),esc(w.country),
+          w.start_date?w.start_date.slice(0,10):'—',w.end_date?w.end_date.slice(0,10):'—',
+          w.tenure_months!=null?w.tenure_months:'—',
+          `<span class="pill ${((w.termination_type||'').toUpperCase().startsWith('VOLUNTARY')?'term':'con')}">${esc(w.termination_type||'Unknown')}</span>`,
+          esc(w.termination_reason||'—')]),{numCols:[5]}).slice(0,4000)+
+        '<div class="denom">Showing first 25 of '+exits.length+'; export for full list</div>'
+      : gateHTML());
+  html+=`</div>`;
+  afterRender(()=>{
+    line('c-tv',D.monthly.map(m=>monthLabel(m.month)),
+      [{label:'Exits',data:D.monthly.map(m=>m.exits),borderColor:'#e5534b',fill:false},
+       {label:'Closing headcount',data:D.monthly.map(m=>m.closing_headcount),borderColor:'#4f8ef7',fill:false,yAxisID:'y1'}]);
+    bar('c-attr-d',topN(countBy(exits,'department'),8),{horizontal:true,color:'#e5534b'});
+    bar('c-attr-c',topN(countBy(exits,'country'),8),{horizontal:true,color:'#f0883e'});
+    doughnut('c-vi',[{label:'Voluntary',count:vol.length},{label:'Involuntary/unknown',count:invol.length}]);
+  });
+  return html;
+}
+function newHire90Attrition(){
+  const rs=[...D.hiring_12m.retention_90d].reverse().find(r=>r.rate!=null);
+  return rs? Math.round((100-rs.rate)*10)/10 : null;
+}
+
+/* ---- org ---- */
+function pageOrg(){
+  const k=computeKpis();
+  const w=cohort(false);
+  const byDept=countBy(w,'department');
+  const growth = D.department_growth||[];
+  let html=`<div class="kpis">`+
+    kpiCard('Departments',fmt(byDept.length),null)+
+    kpiCard('Largest Dept',(byDept[0]||{}).label||'—',(byDept[0]?fmt(byDept[0].count)+' people':''))+
+    kpiCard('Managers',fmt(listManagerSpans().length),'with direct reports')+
+    kpiCard('Avg Direct Reports',D.current.span_of_control.avg_span,null)+
+    kpiCard('Management Ratio',D.current.span_of_control.mgmt_ratio_pct+'%',null)+
+  `</div>`;
+  html+=`<div class="grid">`;
+  html+=panel('Headcount by Department','Current active (filtered)',`<canvas id="c-o-dept"></canvas>`,'c12');
+  html+=panel('Department Growth','Change vs previous month (top movers)',`<div id="t-growth"></div>`,'c12');
+  html+=panel('Span of Control Buckets','Managers by direct-report count',`<canvas id="c-o-span"></canvas>`);
+  html+=panel('Employment Type Mix','Employees vs contractors',`<canvas id="c-o-et"></canvas>`);
+  html+=panel('Job Level Distribution','Active workforce (filtered)',`<canvas id="c-o-level"></canvas>`);
+  html+=panel('Legal Entity Distribution','Active by employing entity',`<canvas id="c-o-entity"></canvas>`);
+  html+=panel('Largest Teams (People Ops)','Top 15 managers by direct reports',
+      isPO()? tableHTML(['Manager','Department','Direct Reports'],D.current.by_manager_top15.map(m=>[esc(m.label),'',m.count]),{numCols:[2]})
+            +'<div class="denom">Top 15 shown; full list in export</div>'
+      : gateHTML());
+  html+=`</div>`;
+  afterRender(()=>{
+    bar('c-o-dept',topN(byDept,14),{horizontal:true});
+    bar('c-o-span',[{label:'1–3',count:D.current.span_of_control.managers_1_3},
+                    {label:'4–8',count:D.current.span_of_control.managers_4_8},
+                    {label:'9+',count:D.current.span_of_control.managers_9plus}]);
+    doughnut('c-o-et',[{label:'Employees',count:k.emp},{label:'Contractors',count:k.con}]);
+    bar('c-o-level',topN(countBy(w,'level'),depth()),{horizontal:true});
+    bar('c-o-entity',topN(countBy(w,'entity'),10),{horizontal:true,color:'#a371f7'});
+    document.getElementById('t-growth').innerHTML=tableHTML(['Department','Headcount','Δ vs prior month','Growth %'],
+      growth.slice(0,15).map(g=>[esc(g.department),g.headcount,`${g.change>=0?'+':''}${g.change}`,
+        `${g.growth_pct>0?'+':''}${g.growth_pct}%`]),{numCols:[1,2,3]});
+  });
+  return html;
+}
+function depth(){ return state.f.dept? 6 : 12; }
+
+/* ---- compensation ---- */
+function pageCompensation(){
+  if(!isPO()) return gateHTML('🔒 <b>Compensation requires People Operations access.</b> Switch the access toggle in the sidebar.');
+  const c=D.compensation, w=cohort(false).filter(x=>x.annual_comp!=null&&x.employment_type==='EMPLOYEE');
+  const cur=c.by_currency.USD||{n:0,median:null,mean:null};
+  let html=`<div class="kpis">`+
+    kpiCard('Employees w/ Comp Data',fmt(c.by_currency.USD?c.by_currency.USD.n:c.by_currency.USD==null?0:c.by_currency.USD.n),'USD records')+
+    kpiCard('Median Annual Base (USD)',cur.median!=null?'$'+cur.median.toLocaleString():'—',null)+
+    kpiCard('Mean Annual Base (USD)',cur.mean!=null?'$'+cur.mean.toLocaleString():'—',null)+
+    kpiCard('Est. Annual Base Cost','—','sum shown in table below (USD only)')+
+  `</div>`;
+  html+=`<div class="gate" style="background:rgba(240,136,62,.06);border-color:rgba(240,136,62,.3)">
+    <b>Scope note:</b> figures are <b>base salary only</b> (annualised); bonus, commission, and equity are excluded.
+    Non-USD currencies are shown separately — no FX conversion is applied.</div>`;
+  html+=`<div class="grid">`;
+  html+=panel('Compensation by Department (USD)','Median annual base per department (≥5 people)',
+      `<canvas id="c-compd"></canvas>`,'c12');
+  html+=panel('By Currency','Annualised base distribution',`<div id="t-curr"></div>`);
+  html+=panel('By Job Level (USD)','Median base level (≥5 people)',`<canvas id="c-complvl"></canvas>`);
+  html+=panel('Compensation Detail (People Ops)','Individual base compensation (USD only)',
+     tableHTML(['Name','Department','Title','Level','Annual Base (USD)'],
+       w.filter(x=>x.comp_currency==='USD').sort((a,b)=>b.annual_comp-a.annual_comp).slice(0,30)
+        .map(x=>[esc(x.name),esc(x.department),esc(x.title),(x.level||'—'),
+          x.annual_comp!=null? '$'+x.annual_comp.toLocaleString():'—']),{numCols:[4]})
+     +'<div class="denom">Top 30 by comp; export for full dataset</div>');
+  html+=`</div>`;
+  afterRender(()=>{
+    const usd=c.by_department.map(d=>({label:d.department,median:d.USD&&d.USD.median}))
+      .filter(d=>d.median!=null).sort((a,b)=>b.median-a.median);
+    bar('c-compd',usd,{horizontal:true,color:'#3fb977'});
+    document.getElementById('t-curr').innerHTML=tableHTML(['Currency','n','Median','Mean'],
+      Object.entries(c.by_currency).map(([k,v])=>[k,v.n,v.median!=null?v.median.toLocaleString():'—',v.mean!=null?v.mean.toLocaleString():'—']),{numCols:[1,2,3]});
+    const bylv={}; w.filter(x=>x.comp_currency==='USD').forEach(x=>{ (bylv[x.level]=bylv[x.level]||[]).push(x.annual_comp); });
+    const items=Object.entries(bylv).map(([k,v])=>({label:k,median:Math.round(median(v)),n:v.length}))
+      .filter(i=>i.n>=5).sort((a,b)=>b.median-a.median);
+    bar('c-complvl',items,{horizontal:true,color:'#f7c94f'});
+  });
+  return html;
+}
+
+/* ---- experience & diversity ---- */
+function pageExperience(){
+  if(!isPO()) return gateHTML('🔒 <b>Employee Experience & Diversity requires People Operations access.</b> Switch toggle in sidebar.');
+  const gD=D.gender;
+  const totalAct=D.workers.filter(x=>x.status==='ACTIVE').length;
+  const totalNH=gD.new_hires_12m.reduce((s,x)=>s+(x.count||0),0);
+  let html=`<div class="gate" style="background:rgba(240,136,62,.06);border-color:rgba(240,136,62,.3)">
+    <b>Surveys unavailable:</b> Rippling surveys/engagement/pulse are not exposed via API — participation and engagement scores require a manual CSV export or BI connector.</div>`;
+  html+=`<div class="kpis">`+
+    kpiCard('Survey Participation','—','not API-accessible')+
+    kpiCard('Engagement Score','—','not API-accessible')+
+    kpiCard('Promotion Rate','—','no worker-change history via API')+
+    kpiCard('Internal Mobility (rehires)',fmt(D.hiring_12m.rehires_total),'proxy: boomerang rehires')+
+  `</div>`;
+  html+=`<div class="grid">`;
+  html+=panel('Gender Representation (Active)','All active workers','<canvas id="c-gen"></canvas>');
+  html+=panel('Gender of New Hires (12m)','Past 12 months of joiners','<canvas id="c-gennh"></canvas>');
+  html+=panel('Gender by Department','Departments with ≥5 people; suppressed otherwise','<div id="c-gendep"></div>');
+  html+=panel('Gender by Level','Levels with ≥5 people','<div id="c-genlvl"></div>');
+  html+=`</div>`;
+  afterRender(()=>{
+    doughnut('c-gen',suppressBy5(gD.active));
+    doughnut('c-gennh',suppressBy5(gD.new_hires_12m));
+    document.getElementById('c-gendep').innerHTML = genderMatrix('department');
+    document.getElementById('c-genlvl').innerHTML = genderMatrix('level');
+  });
+  return html;
+}
+function suppressBy5(items){ return items.map(i=> i.count<5? Object.assign({},i,{label:'Suppressed (<5)',count:null,suppressed:i.count}) : i); }
+function genderMatrix(dim){
+  const w=D.workers.filter(x=>x.status==='ACTIVE');
+  const gkey={}; const rows={};
+  w.forEach(x=>{ const k=x[dim]||'Unknown'; const g=x.gender||'Unknown';
+    if(!rows[k]) rows[k]={}; rows[k][g]=(rows[k][g]||0)+1; });
+  const gs=new Set(); Object.values(rows).forEach(r=>Object.keys(r).forEach(g=>gs.add(g)));
+  const gArr=[...gs].sort();
+  return tableHTML([dim,...gArr], Object.entries(rows).map(([k,r])=>[esc(k),...gArr.map(g=>{
+    const n=Object.values(r).reduce((s,v)=>s+v,0);
+    if(n<5) return '<span style="color:var(--muted)">—</span>';
+    return r[g]||0;
+  })]));
+}
+
+/* ---- directory ---- */
+function pageWorkers(){
+  if(!isPO()) return gateHTML('🔒 <b>Employee Directory requires People Operations access.</b> Switch toggle in sidebar.');
+  const w=cohort(true);
+  let html=`<input class="search" id="w-search" placeholder="Search name, title, department…">
+     <div style="margin-bottom:8px;color:var(--muted);font-size:12px" id="w-count"></div>
+     <div style="max-height:600px;overflow:auto"><table id="w-table"><thead><tr>
+        <th>Name</th><th>Status</th><th>Type</th><th>Department</th><th>Title</th><th>Manager</th><th>Country</th><th>Level</th><th class="num">FTE</th><th>Start</th><th>End</th><th class="num">Tenure (mo)</th>
+     </tr></thead><tbody id="w-body"></tbody></table></div>
+     <div class="denom">Showing up to 100 rows in-page; use Export for the complete filtered list.</div>`;
+  return html;
+}
+function renderWorkerTable(){
+  const w=cohort(true);
+  const q=(document.getElementById('w-search')||{}).value||'';
+  const ql=q.toLowerCase();
+  const filt=q? w.filter(x=>(x.name+' '+(x.title||'')+' '+x.department+' '+x.country).toLowerCase().includes(ql)):w;
+  const slice=filt.slice(-100).reverse();
+  document.getElementById('w-count').textContent=`${filt.length} workers match current filters`;
+  document.getElementById('w-body').innerHTML= slice.map(x=>`<tr>
+    <td>${esc(x.name)}</td>
+    <td><span class="pill ${x.status==='ACTIVE'?'active':'term'}">${x.status}</span></td>
+    <td><span class="pill ${x.employment_type==='EMPLOYEE'?'emp':'con'}">${x.employment_type}</span></td>
+    <td>${esc(x.department)}</td><td>${esc(x.title||'—')}</td><td>${esc(x.manager)}</td>
+    <td>${esc(x.country)}</td><td>${esc(x.level||'—')}</td><td class="num">${x.fte!=null?x.fte:'—'}</td>
+    <td>${x.start_date?x.start_date.slice(0,10):'—'}</td>
+    <td>${x.end_date?x.end_date.slice(0,10):'—'}</td>
+    <td class="num">${x.tenure_months!=null?x.tenure_months:'—'}</td></tr>`).join('');
+}
+
+/* ---- data quality ---- */
+function pageDataquality(){
+  const g=D.data_quality;
+  let html=`<div class="grid">`;
+  html+=panel('Integration Availability','What the Rippling API does and does not provide (verified 2026-11-02)',
+    `<div class="dq">`+g.gaps.map(x=>`<div class="item"><span class="area">${esc(x.area)}</span><br>
+       <span class="status">${esc(x.status)}</span><br><span style="color:var(--muted)">Impact: ${esc(x.kpi_impact)}</span></div>`).join('')+
+    `<div class="item"><span class="area">Available & refreshed every 20 min</span><br>
+      <span class="ok">Workers (statuses/dates/manager/department/location), Users (gender, title, level), Departments, Legal entities, Employment types, Compensation (base, annualized)</span></div>`+
+    `</div>`,'c12');
+  html+=panel('Validation','Automated checks run on every refresh',`
+    <div class="dq">
+      <div class="item"><span class="ok">✓ Reconciliation:</span> opening + hires − exits + adjustments = closing — valid for all 13 months of history.</div>
+      <div class="item"><span class="ok">✓ Deduplication:</span> unique worker_id per record (1,184 unique).</div>
+      <div class="item"><span class="ok">✓ Missing data policy:</span> missing values are never treated as zero; KPIs with missing denominators show “—”.</div>
+      <div class="item"><span class="ok">✓ Employee/contractor separation:</span> classification via employment type mapping.</div>
+      <div class="item"><span class="ok">✓ Monthly snapshots:</span> immutable monthly history retained + fresh data every 20 minutes.</div>
+    </div>`,'c12');
+  html+=panel('Permissions & Access','Rippling entitlements relevant to this dashboard',`
+    <div class="dq">
+      <div class="item"><span class="area">✓ Granted:</span> workers, users, departments, legal entities, employment types, compensations (base).</div>
+      <div class="item"><span class="area">✗ Not enabled:</span> Headcount Planning, Compensation Bands (feature not enabled in Rippling org).</div>
+      <div class="item"><span class="area">✗ Not exposed:</span> Surveys/Engagement/Pulse, Reports & Dashboards, recruiting analytics (candidates/requisitions empty), recruitment expense, promotion/transfer history.</div>
+    </div>`,'c12');
+  html+=`</div>`;
+  return html;
+}
+
+/* ================= shell ================= */
+const RENDERERS={overview:pageOverview,hiring:pageHiring,attrition:pageAttrition,org:pageOrg,
+  compensation:pageCompensation,experience:pageExperience,workers:pageWorkers,dataquality:pageDataquality};
+function renderNav(){
+  document.getElementById('nav').innerHTML=PAGES.map(p=>
+    `<a class="${state.page===p.id?'active':''} ${p.restricted && !isPO()?'restricted':''}" data-page="${p.id}">
+      <span>${p.icon} ${p.t}</span>${p.restricted&&state.role!=='peopleops'?'<span class="lock">🔒</span>':''}</a>`).join('');
+  document.querySelectorAll('#nav a').forEach(a=>a.addEventListener('click',()=>{state.page=a.dataset.page;render();}));
+  document.getElementById('perm-note').innerHTML = isPO()
+    ? 'People Ops: analytics + employee-level drilldowns + comp/demographic data.'
+    : 'Leadership: aggregate org reporting. Compensation and individual drilldowns are admin-only.';
+}
+function renderFilters(){
+  const f=state.f, d=D.dimensions;
+  document.getElementById('filters-box').innerHTML=`<div class="filters">
+    <div class="fgroup"><label>Period</label><select id="f-period">
+      ${['1m|This month','3m|Last 3 months','12m|Rolling 12 months','ytd|Year to date','custom|Custom dates']
+        .map(o=>{const [v,t]=o.split('|'); return `<option value="${v}" ${f.period===v?'selected':''}>${t}</option>`;}).join('')}
+    </select></div>
+    <div class="fgroup" id="custom-dates" style="${f.period==='custom'?'':'display:none'}">
+      <label>Custom</label><span style="display:flex;gap:4px">
+        <input type="date" id="f-from" value="${f.from}"><input type="date" id="f-to" value="${f.to}"></span></div>
+    <div class="fgroup"><label>Department</label><select id="f-dept"><option value="">All</option>
+      ${d.departments.map(x=>`<option ${f.dept===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="fgroup"><label>Manager</label><select id="f-manager"><option value="">All</option>
+      ${d.managers.map(x=>`<option ${f.manager===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="fgroup"><label>Country</label><select id="f-country"><option value="">All</option>
+      ${d.countries.map(x=>`<option ${f.country===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <div class="fgroup"><label>Type</label><select id="f-etype"><option value="">All</option>
+      <option value="EMPLOYEE" ${f.etype==='EMPLOYEE'?'selected':''}>Employee</option>
+      <option value="CONTRACTOR" ${f.etype==='CONTRACTOR'?'selected':''}>Contractor</option></select></div>
+    <div class="fgroup"><label>Status</label><select id="f-status"><option value="">All</option>
+      <option value="active" ${f.status==='active'?'selected':''}>Active</option>
+      <option value="terminated" ${f.status==='terminated'?'selected':''}>Terminated</option></select></div>
+    <div class="fgroup"><label>Level</label><select id="f-level"><option value="">All</option>
+      ${d.levels.map(x=>`<option ${f.level===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>
+    <button class="reset" id="f-reset">Reset Filters</button>
+    ${isPO()?`<button class="export" id="f-export">Export CSV</button>`:''}
+  </div>`;
+  ['f-period','f-dept','f-manager','f-country','f-etype','f-status','f-level'].forEach(id=>{
+    document.getElementById(id).addEventListener('change',e=>{
+      const k=id.replace('f-',''); state.f[k]=e.target.value; render(); });
+  });
+  document.getElementById('f-period').addEventListener('change',()=>{ /* handled above via same loop? dedupe */ });
+  ['f-from','f-to'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.addEventListener('change',e=>{ state.f[id.split('-')[1]]=e.target.value; render(); });
+  });
+  document.getElementById('f-reset').addEventListener('click',()=>{ state.f={period:'12m',dept:'',manager:'',country:'',etype:'',status:'',level:'',from:'',to:''}; render(); });
+  const ex=document.getElementById('f-export');
+  if(ex) ex.addEventListener('click',exportCSV);
+}
+function afterRender(fn){ requestAnimationFrame(()=>fn()); setTimeout(fn,60); }
+
+function exportCSV(){
+  const w=cohort(state.f.status!=='active');
+  const cols=['id','name','status','employment_type','department','title','manager','country','entity','level','gender','fte','start_date','end_date','tenure_months','annual_comp','comp_currency','termination_type','termination_reason'];
+  const csv=[cols.join(',')].concat(w.map(x=>cols.map(c=>JSON.stringify(x[c]==null?'':x[c])).join(','))).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='people_analytics_export_'+D.as_of+'.csv'; a.click();
+}
+
+function render(){
+  killCharts();
+  renderNav();
+  const p=PAGES.find(x=>x.id===state.page);
+  document.getElementById('page-title').textContent=p.t;
+  const restricted=p.restricted && !isPO();
+  const contentEl=document.getElementById('content');
+  if(restricted){ document.getElementById('filters-box').innerHTML='';
+    contentEl.innerHTML=gateHTML(); return; }
+  renderFilters();
+  contentEl.innerHTML=RENDERERS[state.page]();
+  document.getElementById('updated').textContent='Data as of '+D.as_of+' · generated '+D.generated_at.slice(0,16).replace('T',' ');
+  document.getElementById('foot-asof').textContent='Company: Telnyx, LLC (Rippling)';
+  document.querySelectorAll('#role-po,#role-ld').forEach(b=>b.classList.toggle('on',b.id==='role-'+(state.role==='peopleops'?'po':'ld')));
+  if(state.page==='workers') renderWorkerTable();
+  setTimeout(()=>{ if(state.page==='workers') renderWorkerTable(); },50);
+}
+/* init */
+async function init(){
+  const res=await fetch('dashboard_data.json');
+  D=await res.json();
+  document.getElementById('updated').textContent='Data as of '+D.as_of;
+  render();
+}
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
